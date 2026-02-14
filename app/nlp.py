@@ -5,7 +5,8 @@ Generates natural replies for BMTC WhatsApp bot
 """
 
 import logging
-from mistralai import Mistral
+from mistralai.client import MistralClient
+from mistralai.models.chat_completion import ChatMessage
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,8 @@ class NLPService:
         if not config.MISTRAL_API_KEY:
             raise ValueError("MISTRAL_API_KEY is missing")
 
-        self.client = Mistral(api_key=config.MISTRAL_API_KEY)
+        # Correct client initialization
+        self.client = MistralClient(api_key=config.MISTRAL_API_KEY)
         self.model = config.MISTRAL_MODEL
 
         logger.info("✅ [NLP] Mistral client initialized")
@@ -26,34 +28,33 @@ class NLPService:
         Generate reply using Mistral chat completion
         """
         try:
-            chat_response = self.client.chat.complete(
+            response = self.client.chat(
                 model=self.model,
                 messages=[
-                    {
-                        "role": "system",
-                        "content": (
+                    ChatMessage(
+                        role="system",
+                        content=(
                             "You are a BMTC bus assistant for Bangalore.\n"
                             "Be short, clear and helpful.\n"
                             "Help with bus routes, timings and fares.\n"
                             "If unsure, suggest practical guidance.\n"
                             "Keep replies WhatsApp-friendly."
                         ),
-                    },
-                    {
-                        "role": "user",
-                        "content": user_message,
-                    },
+                    ),
+                    ChatMessage(
+                        role="user",
+                        content=user_message,
+                    ),
                 ],
                 temperature=0.4,
                 max_tokens=200,
             )
 
-            # SAFE extraction
-            if not chat_response.choices:
+            if not response.choices:
                 logger.warning("[NLP] Empty response from Mistral")
                 return "⚠️ I couldn't process that. Please try again."
 
-            reply = chat_response.choices[0].message.content
+            reply = response.choices[0].message.content
 
             if not reply:
                 logger.warning("[NLP] Empty message content")
@@ -61,7 +62,7 @@ class NLPService:
 
             return reply.strip()
 
-        except Exception as e:
+        except Exception:
             logger.exception("[NLP] Mistral error")
             return (
                 "⚠️ I'm having trouble right now. "
